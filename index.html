@@ -165,6 +165,7 @@ button:hover{
 <button class="reset" onclick="resetTC()">RESET</button>
 <button onclick="fullscreenTC()">FULLSCREEN</button>
 <button onclick="toggleFlash()">FLASH SEPARATOR</button>
+<button onclick="armZeroAtNextHour()">GENERARE DE LA 0 CÂND E ORA FIXĂ</button>
 </div>
 
 <div class="status" id="status">
@@ -187,6 +188,7 @@ let running=false;
 let startTimestamp=0;
 let accumulatedFrames=0;
 let flashEnabled=false;
+let zeroAtNextHour=false;
 
 function parseTC(tc){
     let p=tc.split(":").map(Number);
@@ -226,6 +228,28 @@ function framesToTC(totalFrames,fps){
 }
 
 function update(){
+
+if(zeroAtNextHour){
+
+    const now=new Date();
+
+    if(
+        now.getMinutes()===0 &&
+        now.getSeconds()===0
+    ){
+
+        accumulatedFrames=0;
+        startTimestamp=performance.now();
+        running=true;
+
+        tcDisplay.textContent="00:00:00:00";
+
+        zeroAtNextHour=false;
+
+        statusEl.textContent=
+        "Pornit de la 00:00:00:00 la ora fixă";
+    }
+}
 
     if(running){
 
@@ -306,6 +330,24 @@ sizeInput.addEventListener("input",()=>{
 
 resetTC();
 update();
+
+function armZeroAtNextHour(){
+
+    zeroAtNextHour=true;
+
+    const now=new Date();
+
+    const nextHour=new Date(now);
+
+    nextHour.setHours(now.getHours()+1);
+    nextHour.setMinutes(0);
+    nextHour.setSeconds(0);
+    nextHour.setMilliseconds(0);
+
+    statusEl.textContent=
+    "Armat pentru " +
+    nextHour.toLocaleTimeString();
+}
 </script>
 
 </body>
