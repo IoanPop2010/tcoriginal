@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>David TC generator</title>
+
+<style>
+:root{
+    --bg:#0b0b0b;
+    --panel:#151515;
+    --border:#2a2a2a;
+    --accent:#00ff66;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background:var(--bg);
+    color:white;
+    font-family:Segoe UI,Arial,sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:20px;
+}
+
+.container{
+    width:min(1200px,100%);
+}
+
+.panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:20px;
+}
+
+h1{
+    margin-bottom:20px;
+    text-align:center;
+}
+
+.timecode{
+    text-align:center;
+    font-size:clamp(3rem,10vw,8rem);
+    font-family:Consolas,monospace;
+    color:var(--accent);
+    text-shadow:0 0 25px rgba(0,255,100,.4);
+    padding:30px;
+    user-select:none;
+}
+
+.controls{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:15px;
+    margin-top:20px;
+}
+
+.group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+}
+
+label{
+    color:#aaa;
+    font-size:.9rem;
+}
+
+input,select{
+    background:#222;
+    border:1px solid #444;
+    color:white;
+    padding:10px;
+    border-radius:8px;
+}
+
+.buttons{
+    margin-top:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+}
+
+button{
+    background:#222;
+    color:white;
+    border:1px solid #444;
+    padding:12px 18px;
+    border-radius:10px;
+    cursor:pointer;
+    transition:.2s;
+}
+
+button:hover{
+    background:#333;
+}
+
+.start{background:#008a3b;}
+.stop{background:#a41f1f;}
+.reset{background:#2455d6;}
+
+.status{
+    text-align:center;
+    margin-top:20px;
+    color:#aaa;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="panel">
+
+<h1>David TC generator</h1>
+
+<div id="tc" class="timecode">
+00:00:00:00
+</div>
+
+<div class="controls">
+
+<div class="group">
+<label>FPS</label>
+<select id="fps">
+<option>23.976</option>
+<option>24</option>
+<option selected>25</option>
+<option>29.97</option>
+<option>30</option>
+<option>50</option>
+<option>59.94</option>
+<option>60</option>
+</select>
+</div>
+
+<div class="group">
+<label>Start Timecode</label>
+<input id="startTC" value="00:00:00:00">
+</div>
+
+<div class="group">
+<label>Display Color</label>
+<input type="color" id="color" value="#00ff66">
+</div>
+
+<div class="group">
+<label>Font Size</label>
+<input type="range" min="40" max="200" value="120" id="fontSize">
+</div>
+
+</div>
+
+<div class="buttons">
+<button class="start" onclick="startTC()">START</button>
+<button class="stop" onclick="stopTC()">STOP</button>
+<button class="reset" onclick="resetTC()">RESET</button>
+<button onclick="fullscreenTC()">FULLSCREEN</button>
+<button onclick="toggleFlash()">FLASH SEPARATOR</button>
+</div>
+
+<div class="status" id="status">
+Stopped
+</div>
+
+</div>
+
+</div>
+
+<script>
+const tcDisplay=document.getElementById("tc");
+const fpsInput=document.getElementById("fps");
+const startInput=document.getElementById("startTC");
+const colorInput=document.getElementById("color");
+const sizeInput=document.getElementById("fontSize");
+const statusEl=document.getElementById("status");
+
+let running=false;
+let startTimestamp=0;
+let accumulatedFrames=0;
+let flashEnabled=false;
+
+function parseTC(tc){
+    let p=tc.split(":").map(Number);
+
+    if(p.length!==4) return 0;
+
+    const fps=parseFloat(fpsInput.value);
+
+    return (
+        p[0]*3600*fps +
+        p[1]*60*fps +
+        p[2]*fps +
+        p[3]
+    );
+}
+
+function framesToTC(totalFrames,fps){
+
+    const hours=Math.floor(totalFrames/(fps*3600));
+
+    totalFrames%=fps*3600;
+
+    const minutes=Math.floor(totalFrames/(fps*60));
+
+    totalFrames%=fps*60;
+
+    const seconds=Math.floor(totalFrames/fps);
+
+    const frames=Math.floor(totalFrames%fps);
+
+    return [
+        hours,
+        minutes,
+        seconds,
+        frames
+    ].map(v=>String(v).padStart(2,"0")).join(":");
+}
+
+function update(){
+
+    if(running){
+
+        const fps=parseFloat(fpsInput.value);
+
+        const elapsed=(performance.now()-startTimestamp)/1000;
+
+        const currentFrames=
+            accumulatedFrames +
+            Math.floor(elapsed*fps);
+
+        let tc=framesToTC(currentFrames,fps);
+
+        if(flashEnabled){
+            tc=tc.replaceAll(":",
+            Math.floor(Date.now()/500)%2 ? ":" : " ");
+        }
+
+        tcDisplay.textContent=tc;
+    }
+
+    requestAnimationFrame(update);
+}
+
+function startTC(){
+
+    if(running) return;
+
+    running=true;
+
+    startTimestamp=performance.now();
+
+    statusEl.textContent="Running";
+}
+
+function stopTC(){
+
+    if(!running) return;
+
+    const fps=parseFloat(fpsInput.value);
+
+    const elapsed=(performance.now()-startTimestamp)/1000;
+
+    accumulatedFrames+=Math.floor(elapsed*fps);
+
+    running=false;
+
+    statusEl.textContent="Stopped";
+}
+
+function resetTC(){
+
+    accumulatedFrames=parseTC(startInput.value);
+
+    startTimestamp=performance.now();
+
+    tcDisplay.textContent=startInput.value;
+
+    statusEl.textContent="Reset";
+}
+
+function fullscreenTC(){
+
+    document.documentElement.requestFullscreen();
+}
+
+function toggleFlash(){
+    flashEnabled=!flashEnabled;
+}
+
+colorInput.addEventListener("input",()=>{
+    tcDisplay.style.color=colorInput.value;
+});
+
+sizeInput.addEventListener("input",()=>{
+    tcDisplay.style.fontSize=sizeInput.value+"px";
+});
+
+resetTC();
+update();
+</script>
+
+</body>
+</html>
